@@ -441,6 +441,8 @@
 
 <p>This is a drop-in replacement for <a href="http://etorreborre.github.io/specs2/guide/SPECS2-3.0/org.specs2.guide.UseMockito.html"><code>org.specs2.mock.Mockito</code></a>. We encourage you to not use <code>org.specs2.mock.Mockito</code> directly. Otherwise, match failures won&rsquo;t be propagated up as ScalaTest test failures.</p>
 
+<p>See the next few sections on how you can use mocks in testing with either <a href="#override-modules">Override Modules</a> or using <a href="#at-bind"><code>@Bind</code></a>.</p>
+
 <h2><a class="anchor" name="override-modules" href="#override-modules">Override Modules</a></h2>
 
 <hr />
@@ -465,7 +467,90 @@
 <div></div>
 
 
-<p>Note, the modules use specifically for testing should generally be placed alongside your test code (as opposed to in your production code) to prevent any mistaken production usage of a test module. Also, it not always necessary to create a test module (see: <a href="#at-bind"><code>@Bind</code></a> section) for use as an override module. However, we encourage creating a test module when the functionality provided by the module is re-usable across your codebase.</p>
+<p>For instance if you have a controller which takes in a type of <code>ServiceA</code>:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='scala'><span class='line'><span class="k">class</span> <span class="nc">MyController</span><span class="o">(</span><span class="n">serviceA</span><span class="k">:</span> <span class="kt">ServiceA</span><span class="o">)</span> <span class="k">extends</span> <span class="nc">Controller</span> <span class="o">{</span>
+</span><span class='line'>  <span class="n">get</span><span class="o">(</span><span class="s">&quot;/:id&quot;</span><span class="o">)</span> <span class="o">{</span> <span class="n">request</span><span class="k">:</span> <span class="kt">Request</span> <span class="o">=&gt;</span>
+</span><span class='line'>    <span class="n">serviceA</span><span class="o">.</span><span class="n">lookupInformation</span><span class="o">(</span><span class="n">request</span><span class="o">.</span><span class="n">params</span><span class="o">(</span><span class="s">&quot;id&quot;</span><span class="o">))</span>
+</span><span class='line'>  <span class="o">}</span>
+</span><span class='line'><span class="o">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<div></div>
+
+
+<p>With a <a href="/finatra/user-guide/getting-started/#modules">Module</a> that provides the implementation of <code>ServiceA</code> to the injector:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class='scala'><span class='line'><span class="k">object</span> <span class="nc">MyServiceAModule</span> <span class="k">extends</span> <span class="nc">TwitterModule</span> <span class="o">{</span>
+</span><span class='line'>  <span class="k">val</span> <span class="n">key</span> <span class="k">=</span> <span class="n">flag</span><span class="o">(</span><span class="s">&quot;key&quot;</span><span class="o">,</span> <span class="s">&quot;defaultkey&quot;</span><span class="o">,</span> <span class="s">&quot;The key to use.&quot;</span><span class="o">)</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="nd">@Singleton</span>
+</span><span class='line'>  <span class="nd">@Provides</span>
+</span><span class='line'>  <span class="k">def</span> <span class="n">providesServiceA</span><span class="k">:</span> <span class="kt">ServiceA</span> <span class="o">=</span> <span class="o">{</span>
+</span><span class='line'>    <span class="k">new</span> <span class="nc">ServiceA</span><span class="o">(</span><span class="n">key</span><span class="o">())</span>
+</span><span class='line'>  <span class="o">}</span>
+</span><span class='line'><span class="o">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<div></div>
+
+
+<p>To test you may want to use a mock or stub version of <code>ServiceA</code> in your controller instead of the real version. You could do this by writing a re-usable module for testing and compose it into the server when testing as an override module.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class='scala'><span class='line'><span class="k">object</span> <span class="nc">StubServiceAModule</span> <span class="k">extends</span> <span class="nc">TwitterModule</span> <span class="o">{</span>
+</span><span class='line'>  <span class="nd">@Singleton</span>
+</span><span class='line'>  <span class="nd">@Provides</span>
+</span><span class='line'>  <span class="k">def</span> <span class="n">providesServiceA</span><span class="k">:</span> <span class="kt">ServiceA</span> <span class="o">=</span> <span class="o">{</span>
+</span><span class='line'>    <span class="k">new</span> <span class="nc">StubServiceA</span><span class="o">(</span><span class="s">&quot;fake&quot;</span><span class="o">)</span>
+</span><span class='line'>  <span class="o">}</span>
+</span><span class='line'><span class="o">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>And in your test, add this stub module as a override module:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='scala'><span class='line'><span class="k">override</span> <span class="k">val</span> <span class="n">server</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">EmbeddedHttpServer</span><span class="o">(</span>
+</span><span class='line'>  <span class="n">twitterServer</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">MyGreatServer</span> <span class="o">{</span>
+</span><span class='line'>    <span class="k">override</span> <span class="k">def</span> <span class="n">overrideModules</span> <span class="k">=</span> <span class="nc">Seq</span><span class="o">(</span><span class="nc">StubServiceAModule</span><span class="o">)</span>
+</span><span class='line'>  <span class="o">},</span>
+</span><span class='line'>  <span class="o">...</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<div></div>
+
+
+<p>Note, modules used specifically for testing should be placed alongside your test code (as opposed to in your production code) to prevent any mistaken production usage of a test module. Also, it not always necessary to create a test module (see: <a href="#at-bind"><code>@Bind</code></a> section) for use as an override module. However, we encourage creating a test module when the functionality provided by the module is re-usable across your codebase.</p>
+
+<p>Also note, that you can always create an override module over a mock, however it is generally preferable to want control over the expected mock behavior per-test and as such it&rsquo;s more common to keep a reference to a mock and use it with the <a href="#at-bind"><code>@Bind</code></a> functionality in a test.</p>
 
 <h2><a class="anchor" name="at-bind" href="#at-bind">Using <code>@Bind</code></a></h2>
 
@@ -473,7 +558,7 @@
 
 <p>First, check out the <a href="https://github.com/google/guice">Google Guice</a> documentation on Bound Fields <a href="https://github.com/google/guice/wiki/BoundFields">here</a>.</p>
 
-<p>In the cases where we&rsquo;d like to easily replace a bound instance with another instance in our tests (e.g., like with a mock or a stub implementation), we do not need to create a specific test module to compose into our server as an override module. Instead we can use the <code>com.google.inject.testing.fieldbinder.Bind</code> annotation.</p>
+<p>In the cases where we&rsquo;d like to easily replace a bound instance with another instance in our tests (e.g., like with a mock or a simple stub implementation), we do not need to create a specific module for testing to compose into our server as an override module. Instead we can use the <code>com.google.inject.testing.fieldbinder.Bind</code> annotation.</p>
 
 <figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
 <span class='line-number'>2</span>
@@ -506,15 +591,15 @@
 </span><span class='line'>  <span class="k">with</span> <span class="nc">Mockito</span>
 </span><span class='line'>  <span class="k">with</span> <span class="nc">HttpTest</span> <span class="o">{</span>
 </span><span class='line'>
-</span><span class='line'>  <span class="nd">@Bind</span> <span class="k">val</span> <span class="n">downstreamServiceClient</span> <span class="k">=</span> <span class="n">smartMock</span><span class="o">[</span><span class="kt">DownstreamServiceClient</span><span class="o">]</span>
+</span><span class='line'>  <span class="nd">@Bind</span> <span class="k">val</span> <span class="n">mockDownstreamServiceClient</span> <span class="k">=</span> <span class="n">smartMock</span><span class="o">[</span><span class="kt">DownstreamServiceClient</span><span class="o">]</span>
 </span><span class='line'>
-</span><span class='line'>  <span class="nd">@Bind</span> <span class="k">val</span> <span class="n">idService</span> <span class="k">=</span> <span class="n">smartMock</span><span class="o">[</span><span class="kt">IdService</span><span class="o">]</span>
+</span><span class='line'>  <span class="nd">@Bind</span> <span class="k">val</span> <span class="n">mockIdService</span> <span class="k">=</span> <span class="n">smartMock</span><span class="o">[</span><span class="kt">IdService</span><span class="o">]</span>
 </span><span class='line'>
 </span><span class='line'>  <span class="k">override</span> <span class="k">val</span> <span class="n">server</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">EmbeddedHttpServer</span><span class="o">(</span><span class="k">new</span> <span class="nc">ExampleServer</span><span class="o">)</span>
 </span><span class='line'>
 </span><span class='line'>  <span class="s">&quot;test&quot;</span> <span class="n">in</span> <span class="o">{</span>
 </span><span class='line'>    <span class="cm">/* Mock GET Request performed by DownstreamServiceClient */</span>
-</span><span class='line'>    <span class="n">downstreamServiceClient</span><span class="o">.</span><span class="n">get</span><span class="o">(</span><span class="s">&quot;/tweets/123.json&quot;</span><span class="o">)(</span><span class="n">manifest</span><span class="o">[</span><span class="kt">FooResponse</span><span class="o">])</span> <span class="n">returns</span> <span class="nc">Future</span><span class="o">(</span><span class="nc">None</span><span class="o">)</span>
+</span><span class='line'>    <span class="n">mockDownstreamServiceClient</span><span class="o">.</span><span class="n">get</span><span class="o">(</span><span class="s">&quot;/tweets/123.json&quot;</span><span class="o">)(</span><span class="n">manifest</span><span class="o">[</span><span class="kt">FooResponse</span><span class="o">])</span> <span class="n">returns</span> <span class="nc">Future</span><span class="o">(</span><span class="nc">None</span><span class="o">)</span>
 </span><span class='line'>    <span class="o">...</span>
 </span><span class='line'>  <span class="o">}</span>
 </span></code></pre></td></tr></table></div></figure>
@@ -523,27 +608,11 @@
 <div></div>
 
 
-<h4>More information:</h4>
+<h4>N.B.:</h4>
 
 <ul>
-<li>You <strong>MUST</strong> extend from either <code>com.twitter.inject.IntegrationTest</code> directly or from a sub-class. We recommend using either <code>com.twitter.inject.app.FeatureTest</code> or <code>com.twitter.inject.server.FeatureTest</code>. See more information on these test traits in the <a href="#feature-tests">next section</a>.</li>
+<li>You <strong>MUST</strong> extend from either <code>com.twitter.inject.IntegrationTest</code> directly or from a sub-class. We recommend using <code>com.twitter.inject.server.FeatureTest</code>. See more information on these test traits in the <a href="#feature-tests">Feature Tests</a> section.</li>
 <li>Prefer to define <code>@Bind</code> and <code>@Inject</code> variables before the server definition.</li>
-<li>You should not need to but you can optionally include the <code>integrationTestModule</code> as an <strong>override module</strong> in your server, i.e.,</li>
-</ul>
-
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-</pre></td><td class='code'><pre><code class='scala'><span class='line'><span class="k">val</span> <span class="n">server</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">EmbeddedHttpServer</span><span class="o">(</span>
-</span><span class='line'>  <span class="n">twitterServer</span> <span class="k">=</span> <span class="k">new</span> <span class="nc">ExampleServer</span> <span class="o">{</span>
-</span><span class='line'>    <span class="k">override</span> <span class="k">val</span> <span class="n">overrideModules</span> <span class="k">=</span> <span class="nc">Seq</span><span class="o">(</span><span class="n">integrationTestModule</span><span class="o">)</span>
-</span><span class='line'>  <span class="o">})</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<ul>
 <li>While we support the <code>com.google.inject.testing.fieldbinder.Bind</code> annotation, our integration does not currently support the <code>to</code> annotation field, e.g., <code>@Bind(to = classOf[T])</code>, therefore,</li>
 <li>The type of the variable you annotate with <code>@Bind</code> must <em>exactly</em> match the type in the object graph you want to override. E.g., if you want to override an implementation bound to an interface with a mock or stub that implements the same interface, you should make sure to type the variable definition. For instance,</li>
 </ul>
@@ -555,11 +624,28 @@
 
 
 <ul>
-<li>Because of lifecycle reasons, access to the embedded server should either be from a lazy variable or inside a test method.</li>
+<li>Because of lifecycle reasons, access to the embedded server <strong>MUST</strong> either be from a lazy variable or inside a test method.</li>
 </ul>
 
 
 <p>For a complete example, see the <a href="https://github.com/twitter/finatra/blob/develop/examples/twitter-clone/src/test/scala/finatra/quickstart/TwitterCloneFeatureTest.scala"><code>TwitterCloneFeatureTest</code></a>.</p>
+
+<p>There is also another way to user this type of binding in tests (which will eventually become the preferred way) that does not have the above caveats (but instead comes with a different caveat). You can also achieve the above <code>@Bind</code> behavior by using <a href="https://github.com/twitter/finatra/blob/develop/inject/inject-server/src/test/scala/com/twitter/inject/server/EmbeddedTwitterServer.scala#L136"><code>EmbeddedTwitterServer#bind</code></a>. Unfortunately, we have not yet migrated from using Scala Manifests and thus this method suffers from not being able to fully support <a href="http://blogs.atlassian.com/2013/09/scala-types-of-a-higher-kind/">higher-kinded</a> types.</p>
+
+<p>To use, you can do:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='scala'><span class='line'><span class="k">val</span> <span class="n">mockIdService</span> <span class="k">=</span> <span class="n">smartMock</span><span class="o">[</span><span class="kt">IdService</span><span class="o">]</span>
+</span><span class='line'>
+</span><span class='line'><span class="k">override</span> <span class="k">val</span> <span class="n">server</span> <span class="k">=</span>
+</span><span class='line'>  <span class="k">new</span> <span class="nc">EmbeddedHttpServer</span><span class="o">(</span><span class="k">new</span> <span class="nc">ExampleServer</span><span class="o">)</span>
+</span><span class='line'>    <span class="o">.</span><span class="n">bind</span><span class="o">[</span><span class="kt">IdService</span><span class="o">](</span><span class="n">mockIdService</span><span class="o">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
 
 <p><nav>
   <ul class="pager">
